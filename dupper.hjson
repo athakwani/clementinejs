@@ -362,7 +362,6 @@ EOM
             fi
             
             # Add .env file and commit changes  
-            sed -i '/.env/d' $REPO_ROOT/.gitignore 
             cp $ENVFILE $REPO_ROOT/.env
             git add -f .env
             # Push app to heroku master            
