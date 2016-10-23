@@ -1,0 +1,467 @@
+{
+  ports: 
+  [
+    "3000:3000",   // mean stack
+    "9418:9418",   // gut daemon
+    "2222:22",     // ssh
+    "8080:8080"    // node-inspector
+  ],  
+  env:
+  [
+    "NODE_ENV=development",
+    "PORT=3000"
+  ],
+  dependencies: 
+  [
+    {
+      name: "linux-dependencies",
+      cmd:
+      '''
+        apt-get -y install curl wget jq vim
+        curl -sL  https://deb.nodesource.com/setup_4.x | bash -
+        apt-get -y install mongodb nodejs daemon
+      '''
+    },
+    {
+      name: "nodejs-dependencies",
+      cmd:
+      '''
+        npm install -g node-inspector
+        cd $REPO_ROOT
+        npm install
+      ''',
+      watch: "package.json"
+    },
+    {
+      name: "heroku-cli",
+      cmd:
+      '''
+        wget -O- https://toolbelt.heroku.com/install-ubuntu.sh | sh
+      '''
+    },
+    {
+      name: "sync-dependencies",
+      cmd:
+      '''
+        apt-get -y install curl sudo inotify-tools openssh-server
+        curl -sSL https://get.dupper.co/dev/index | sh
+      '''
+    }     
+  ],
+  commands: {
+    start: [{
+      server:
+      '''
+
+        cd $REPO_ROOT
+        ENVFILE=$REPO_ROOT/.env.local
+
+        [ -f $ENVFILE ] && APP_NAME=$(source $ENVFILE; echo $APP_NAME)
+
+        if [[ -z $APP_NAME ]]
+        then
+            # Generate APP Name and APP URL from user.name
+            APP_NAME="clementinejs"
+            echo "APP_NAME=$APP_NAME" > $ENVFILE
+        fi
+
+        PORT=$(source $ENVFILE; echo $PORT)
+        if [[ -z $PORT ]]
+        then
+            PORT=3000
+            echo "PORT=$PORT" >> $ENVFILE
+        fi
+
+        APP_URL=$(source $ENVFILE; echo $APP_URL)
+        if [[ -z $APP_URL ]]
+        then
+            APP_URL=http://${SERVER_IP}:$PORT/
+            echo "APP_URL=$APP_URL" >> $ENVFILE
+        fi
+
+        MONGODB_URI=$(source $ENVFILE; echo $MONGODB_URI)
+        if [[ -z $MONGODB_URI ]]
+        then
+            MONGODB_URI="mongodb://localhost:27017/clementinejs"
+            echo "MONGO_URI=$MONGODB_URI" >> $ENVFILE
+        fi
+
+        GITHUB_KEY=$(source $ENVFILE; echo $GITHUB_KEY)
+        GITHUB_SECRET=$(source $ENVFILE; echo $GITHUB_SECRET)
+
+        if [[ -x $GITHUB_KEY ]] || [[ -z $GITHUB_SECRET ]]
+        then
+            # Instruction to register OAUTH application on GITHUB
+            cat <<-EOM
+
+            Please visit https://github.com/settings/applications/new to create application with following information
+            Application Name - $APP_NAME
+            Homepage URL - $APP_URL
+            Authorization callback URL - ${APP_URL}auth/github/callback
+            and come back to fill below information
+
+EOM
+        fi
+
+        if [[ -z $GITHUB_KEY ]]
+        then
+            # Collect OAUTH parameters and write in .env file
+            printf "Enter Github App Client ID: "
+            read GITHUB_KEY
+            [ -z $GITHUB_KEY ] && echo "Invalid Client ID" && exit 1                
+            echo "GITHUB_KEY=$GITHUB_KEY" >> $ENVFILE
+        fi
+
+        if [[ -z $GITHUB_SECRET ]]
+        then
+            printf "Enter Github App Client Secret: "
+            read GITHUB_SECRET
+            [ -z $GITHUB_SECRET ] && echo "Invalid Client Secret" && exit 1                
+            echo "GITHUB_SECRET=$GITHUB_SECRET" >> $ENVFILE
+        fi
+
+         # Check Mogodb service and start if not running
+         service mongodb status > /dev/null 2>&1
+         if [[ $? -ne 0 ]]
+         then
+            service mongodb start
+         fi
+
+         cp $ENVFILE $REPO_ROOT/.env
+         
+         # Start node server as Daemon
+         PORT=3000 daemon --name="clementinejs" --output=clementinejs.out -F /var/run/clementinejs.pid -D $REPO_ROOT -X /usr/bin/node -- --debug server -r dotenv_config_path=$ENVFILE
+
+         echo "Clementinejs stack ..... [ STARTING ]"
+         
+         # Check for Server start
+         timeout 20 bash -c -- "while true; do wget -q --retry-connrefused \
+         --waitretry=1 --read-timeout=20 --timeout=15 -t 0 --continue localhost:3000 >/dev/null 2>&1; \
+         if [ $? = 0 ]; then break; fi; sleep 2s; done"
+
+         # Report status
+         _exit_code=$?   
+         if [[ $_exit_code -eq 0 ]]
+         then
+             echo -e "Clementinejs stack ..... [ STARTED ]"
+         else
+             echo -e "Clementinejs stack ..... [ TIMEOUT ]"
+         fi
+
+         # Pass Status to client
+         _export _exit_code
+      '''
+    },{
+      client:
+      '''
+         # Open browser on Mac if server started successfully.
+         if [[ $_exit_code -eq 0 ]]
+         then
+             os="$(uname -s)"
+             if [[ $os == "Darwin" ]]; then
+                 echo -e "Opening Browser"
+                 open http://$SERVER_IP:3000/
+             else
+                 echo "Clementinejs reachable at http://$SERVER_IP:3000/"
+             fi        
+         fi
+      '''
+    }],
+    stop: [{
+      server:
+      '''
+          # Get group ID of Gulp daemon process
+          pgid=$(ps --no-headers -o pgid $(cat /var/run/clementinejs.pid))
+          pgid=$(echo $pgid | tr -d '[[:space:]]')
+
+          # Kill all group processes
+          pkill -1 -g $pgid
+
+          echo "Clementinejs stack ..... [ STOPPING ]"
+
+          # Check for termination and report status
+          timeout 5 bash -c -- "while true; do [ -f /var/run/clementinejs.pid ]; \
+          if [ $? -eq 0 ]; then break; fi; sleep 2s; done"
+          _exit_code=$?
+
+          if [[ $_exit_code -eq 0 ]]
+          then
+              echo -e "Clementinejs stack ..... [ STOPPED ]"
+          else
+              echo -e "Clementinejs stack ..... [ TIMEOUT ]"
+          fi
+      '''
+    }],    
+    delete: [{
+      server:
+      '''
+          # Get group ID of Gulp daemon process
+          pgid=$(ps --no-headers -o pgid $(cat /var/run/clementinejs.pid))
+          pgid=$(echo $pgid | tr -d '[[:space:]]')
+
+          # Kill all group processes
+          [ -n $pgid ] && pkill -1 -g $pgid
+          rm -f $REPO_ROOT/.env.local
+          echo -e "Clementinejs stack config ..... [ DELETED ]"
+      '''
+    }],        
+    logs: [{
+      server:
+      '''
+          [ -f $REPO_ROOT/clementinejs.out ] && tail -n 1000 $REPO_ROOT/clementinejs.out
+      '''
+    }],     
+    debug: [{
+        server:
+        '''
+            # Start debugger in background detached from terminal
+            [ -f /var/run/clementinejs.pid ]
+            exit_code=$?
+            _export exit_code
+    
+            if [[ $exit_code -ne 0 ]]
+            then
+                echo "Clementinejs stack not running, start using below command:"
+                echo "Usage:"
+                echo "    dupper exec $REPO_NAME start"
+                exit 1
+            fi
+            
+            # Start debugger in background detached from terminal
+            daemon --name="node-inspector" --output=node-inspector.out -F /var/run/node-inspector.pid -D $REPO_ROOT -X /usr/bin/node \
+            /usr/bin/node-inspector -- --web-port=8080 --web-host=0.0.0.0
+            
+            exit_code="$?"
+            _export exit_code
+        '''
+      },{
+        client:
+        '''
+          os="$(uname -s)"
+          if [[ $os == "Darwin" ]]; then
+            [ $exit_code -eq 0 ] && open http://$SERVER_IP:8080/
+          else
+            echo "Debugger runnning at http://$SERVER_IP:8080/"
+          fi        
+        '''
+    }],
+    heroku-deploy: [{
+        server:
+        '''
+            cd $REPO_ROOT
+            ENVFILE=$REPO_ROOT/.env.heroku
+            
+            EMAIL=$(git config --global user.email)
+            if [[ -z $EMAIL ]]
+            then
+                printf "Enter Email for git commit: "
+                read EMAIL
+                [ -z $EMAIL ] && echo "Invalid email address" && exit 1
+                git config --global user.email $EMAIL
+            fi
+
+            NAME=$(git config --global user.name)
+            if [[ -z $NAME ]]
+            then
+                printf "Enter Name for git commit: "
+                read NAME
+                [ -z $EMAIL ] && echo "Invalid Name" && exit 1
+                git config --global user.name $NAME
+            fi
+
+            
+            [ -f $ENVFILE ] && APP_NAME=$(source $ENVFILE; echo $APP_NAME)
+            
+            if [[ -z $APP_NAME ]]
+            then
+                # Generate APP Name and APP URL from user.name
+                APP_NAME=$(echo $NAME | awk '{print $1;}')
+                APP_NAME="${APP_NAME,,}-${RANDOM}${RANDOM}"
+                echo "APP_NAME=$APP_NAME" > $ENVFILE
+            fi
+
+            APP_URL=$(source $ENVFILE; echo $APP_URL)
+            if [[ -z $APP_URL ]]
+            then
+                APP_URL=https://${APP_NAME}.herokuapp.com/
+                echo "APP_URL=$APP_URL" >> $ENVFILE
+            fi
+
+            REMOTE_APP_NAME=$(heroku domains  --app $APP_NAME --json 2>&1 | jq -r .[0].app.name 2>&1)
+            # Get config from user if .env file doesnt exists
+            if [[ $REMOTE_APP_NAME != $APP_NAME ]]
+            then
+                # Create Heroku app and add MONGODB URI addon
+                heroku create $APP_NAME
+                [ $? -ne 0 ] && exit 1
+            fi
+
+            MONGODB_URI=$(heroku config:get MONGODB_URI --app $APP_NAME)
+            if [[ -z $MONGODB_URI ]]
+            then
+                heroku addons:create mongolab --app $APP_NAME
+                [ $? -ne 0 ] && exit 1
+                MONGODB_URI=$(heroku config:get MONGODB_URI --app $APP_NAME)
+                echo "MONGO_URI=$MONGODB_URI" >> $ENVFILE
+            fi
+
+            GITHUB_KEY=$(source $ENVFILE; echo $GITHUB_KEY)
+            GITHUB_SECRET=$(source $ENVFILE; echo $GITHUB_SECRET)
+            
+            if [[ -x $GITHUB_KEY ]] || [[ -z $GITHUB_SECRET ]]
+            then
+                # Instruction to register OAUTH application on GITHUB
+                cat <<-EOM
+
+                Please visit https://github.com/settings/applications/new to create application with following information
+                Application Name - $APP_NAME
+                Homepage URL - $APP_URL
+                Authorization callback URL - ${APP_URL}auth/github/callback
+                and come back to fill below information
+                
+EOM
+            fi
+            
+            if [[ -z $GITHUB_KEY ]]
+            then
+                # Collect OAUTH parameters and write in .env file
+                printf "Enter Github App Client ID: "
+                read GITHUB_KEY
+                [ -z $GITHUB_KEY ] && echo "Invalid Client ID" && exit 1                
+                echo "GITHUB_KEY=$GITHUB_KEY" >> $ENVFILE
+            fi
+
+            if [[ -z $GITHUB_SECRET ]]
+            then
+                printf "Enter Github App Client Secret: "
+                read GITHUB_SECRET
+                [ -z $GITHUB_SECRET ] && echo "Invalid Client Secret" && exit 1                
+                echo "GITHUB_SECRET=$GITHUB_SECRET" >> $ENVFILE
+            fi
+
+            GITURL=$(git remote -v | grep heroku.*\(fetch\) | sed "s/heroku.*\(http.*\)(fetch)/\1/g")
+            HEROKU_GITURL=$(heroku apps:info $APP_NAME --json | jq -r .app.git_url)
+            [ $? -ne 0 ] && exit 1
+
+            if [[ $GITURL != $HEROKU_GITURL ]]
+            then
+                git remote rm heroku
+                git remote add heroku $HEROKU_GITURL
+            fi
+            
+            # Add .env file and commit changes   
+            cp $ENVFILE $REPO_ROOT/.env
+            git add -f .env
+            # Push app to heroku master            
+            git add -A
+            git commit -m "Heroku Deploy"
+            git push heroku master
+            URL=$(heroku domains --app $APP_NAME --json | jq .[0].hostname)
+            _export URL
+        '''
+      },{
+        client:
+        '''
+          # Open APP URL on Mac
+          os="$(uname -s)"
+          if [[ $os == "Darwin" ]]; then
+            [[ ${URL:-} != "" ]] && open https://$URL
+          else
+            echo "Heroku app deployed at https://$URL"
+          fi        
+        '''
+    }],    
+    heroku-delete: [{
+        server:
+        '''
+            cd $REPO_ROOT
+            ENVFILE=$REPO_ROOT/.env.heroku
+
+            [ -f $ENVFILE ] && APP_NAME=$(source $ENVFILE; echo $APP_NAME)
+            
+            if [[ -n $APP_NAME ]]
+            then
+                git remote remove heroku
+                heroku apps:destroy --app $APP_NAME --confirm $APP_NAME
+                # Instruction to register OAUTH application on GITHUB
+                cat <<-EOM
+                
+                Don't forget to delete OAUTH $APP_NAME Application from your Github account.
+                
+EOM
+                rm $ENVFILE
+            else 
+                echo "App not Found"
+            fi            
+        '''
+    }],       
+    sync: [{
+      server:
+      '''
+          if [ ! -f $HOME/.ssh/devenv ]
+          then
+            mkdir -p $HOME/.ssh
+            ssh-keygen -q -t rsa -N "" -f "$HOME/.ssh/devenv"
+            cat "$HOME/.ssh/devenv.pub" >> $HOME/.ssh/authorized_keys
+          fi
+         
+          PRIVATEKEY="$(cat $HOME/.ssh/devenv)"
+          _export PRIVATEKEY
+
+          cp $REPO_ROOT/.gitignore $REPO_ROOT/.gutignore
+          echo -e "\n.gut" >> $REPO_ROOT/.gitignore
+          echo ".gutignore" >> $REPO_ROOT/.gitignore
+          ulimit -n 9999
+        
+          service ssh status > /dev/null 2>&1
+          if [[ $? -ne 0 ]]
+          then
+            service ssh start
+          fi
+      '''
+    },{
+      client:
+      '''
+          _verbose=0
+          _path=""
+          
+          while [ "$#" -gt 0 ]
+          do
+            opt="$1"
+            shift
+            case "$opt" in
+              --verbose|-v)
+                _verbose=1
+                ;;
+              *)
+                if [[ -z $_path ]]
+                then
+                  _path="$opt"
+                fi
+                ;;
+            esac
+          done          
+                    
+          if [[ $_path == "" ]]
+          then
+            echo "Usage: dupper exec $REPO_NAME devenv [--verbose | -v] PATH"
+            exit 1
+          fi
+          
+          set +e
+          command -v "dev" > /dev/null 2>&1
+          exit_code=$?
+          set -e
+          if [[ $exit_code -ne 0 ]]; then
+            curl -sSL https://get.dupper.co/dev/index | sh
+          fi
+          
+          mkdir -p $HOME/.ssh
+          echo "$PRIVATEKEY" > $HOME/.ssh/devenv
+          
+          mkdir -p $_path
+          dev sync $([[ $_verbose -eq 1 ]] && echo "-v") -i $HOME/.ssh/devenv root@$SERVER_IP:2222:$REPO_ROOT $_path
+      '''
+    }]  
+  }
+}
