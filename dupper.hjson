@@ -5,6 +5,7 @@
     "9418:9418",   // gut daemon
     "2222:22",     // ssh
     "8080:8080"    // node-inspector
+    "8000:8000",   // mean stack
   ],  
   env:
   [
