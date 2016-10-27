@@ -87,9 +87,12 @@
         APP_URL=$(source $ENVFILE; echo $APP_URL)
         if [[ -z $APP_URL ]]
         then
-            APP_URL=$(openport --detach 3000 | head -n1 | sed -E 's/.*(http.*$)/\1/g')
+            PORT=$(openport --detach 3000)
+            PID=$( echo "$PORT" | tail -n1 | sed -E 's/Background process ID ([0-9]+)/\1/g')
+            APP_URL=$( echo "$PORT" | head -n1 | sed -E 's/.*(http.*$)/\1/g')
             APP_URL=$(echo ${APP_URL}/)
             echo "APP_URL=$APP_URL" >> $ENVFILE
+            echo "PID=$PID" >> $ENVFILE
         fi
         _export APP_URL
 
@@ -209,6 +212,11 @@ EOM
     delete: [{
       server:
       '''
+      
+          ENVFILE=$REPO_ROOT/.env.local
+          [ -f $ENVFILE ] && PID=$(source $ENVFILE; echo $PID)
+          [[ $PID != "" ]] && openport --kill $PID
+
           # Get group ID of Gulp daemon process
           pgid=$(ps --no-headers -o pgid $(cat /var/run/clementinejs.pid))
           pgid=$(echo $pgid | tr -d '[[:space:]]')
@@ -500,9 +508,8 @@ EOM
     collab: [{
       server:
       '''
-          # open c9 port to internet
-          openport 8000
-          echo -e "\rStopping..."
+        openport  8000
+        echo -e "\rStopping.."
       '''
     }],  
   }
