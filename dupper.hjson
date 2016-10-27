@@ -1,11 +1,11 @@
 {
   ports: 
   [
-    "3000:3000",   // mean stack
+    "3000:3000",   // fcc stack
     "9418:9418",   // gut daemon
     "2222:22",     // ssh
     "8080:8080"    // node-inspector
-    "8000:8000",   // mean stack
+    "8000:8000",   // c9
   ],  
   env:
   [
@@ -21,6 +21,7 @@
         apt-get -y install curl wget jq vim
         curl -sL  https://deb.nodesource.com/setup_4.x | bash -
         apt-get -y install mongodb nodejs daemon
+        curl -sSL https://get.dupper.co/op | sh
       '''
     },
     {
@@ -64,7 +65,6 @@
     start: [{
       server:
       '''
-
         cd $REPO_ROOT
         ENVFILE=$REPO_ROOT/.env.local
 
@@ -87,9 +87,11 @@
         APP_URL=$(source $ENVFILE; echo $APP_URL)
         if [[ -z $APP_URL ]]
         then
-            APP_URL=http://${SERVER_IP}:$PORT/
+            APP_URL=$(openport --detach 3000 | head -n1 | sed -E 's/.*(http.*$)/\1/g')
+            APP_URL=$(echo ${APP_URL}/)
             echo "APP_URL=$APP_URL" >> $ENVFILE
         fi
+        _export APP_URL
 
         MONGODB_URI=$(source $ENVFILE; echo $MONGODB_URI)
         if [[ -z $MONGODB_URI ]]
@@ -172,9 +174,9 @@ EOM
              os="$(uname -s)"
              if [[ $os == "Darwin" ]]; then
                  echo -e "Opening Browser"
-                 open http://$SERVER_IP:3000/
+                 open $APP_URL
              else
-                 echo "Clementinejs reachable at http://$SERVER_IP:3000/"
+                 echo "Clementinejs reachable at $APP_URL"
              fi        
          fi
       '''
@@ -481,7 +483,7 @@ EOM
           # Start debugger in background detached from terminal
           start-stop-daemon -b --start --quiet --oknodo \
           --pidfile /var/run/c9.pid --exec $HOME/.c9/node/bin/node \
-          -- /root/cloud9/server.js --listen 0.0.0.0 --port 8000 -w $REPO_ROOT
+          -- /root/cloud9/server.js --listen 0.0.0.0 --port 8000 -w $REPO_ROOT --collab
           exit_code=$?
           _export exit_code
       '''
@@ -494,5 +496,14 @@ EOM
               [ $exit_code -eq 0 ] && open http://$SERVER_IP:8000/  
           fi        
       '''
-    }],  }
+    }],  
+    collab: [{
+      server:
+      '''
+          # open c9 port to internet
+          openport 8000
+          echo -e "\rStopping..."
+      '''
+    }],  
+  }
 }
