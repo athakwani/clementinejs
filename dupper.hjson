@@ -22,6 +22,10 @@
         curl -sL  https://deb.nodesource.com/setup_4.x | bash -
         apt-get -y install mongodb nodejs daemon
         curl -sSL https://get.dupper.co/op | sh
+        cd tmp
+        wget https://github.com/github/hub/releases/download/v2.3.0-pre8/hub-linux-amd64-2.3.0-pre8.tgz
+        tar -xvzf hub-linux-amd64-2.3.0-pre8.tgz 
+        cp ./hub-linux-amd64-2.3.0-pre8/bin/hub /usr/local/bin/
       '''
     },
     {
@@ -197,7 +201,6 @@ EOM
     delete: [{
       server:
       '''
-      
           ENVFILE=$REPO_ROOT/.env.local
           [ -f $ENVFILE ] && PID=$(source $ENVFILE; echo $PID)
           [[ $PID != "" ]] && openport --kill $PID
@@ -272,13 +275,32 @@ EOM
           fi        
       '''
     }],  
-
-collab: [{
+    collab: [{
       server:
       '''
         openport  8000
         echo -e "\rStopping.."
       '''
     }],  
+    save: [{
+      server:
+      '''
+        cd $REPO_ROOT
+        
+        printf "Username for 'https://github.com': "
+        read GITHUB_USER
+        export GITHUB_USER
+
+        printf "Password for 'https://$GITHUB_USER@github.com':"
+        read GITHUB_PASSWORD
+        export GITHUB_PASSWORD        
+        hub fork --no-remote
+        hub remote remove origin
+        hub remote add origin https://${GITHUB_USER}:${GITHUB_PASSWORD}@github.com/$GITHUB_USER/$REPO_NAME
+        hub push
+        hub remote remove origin
+        hub remote add origin https://github.com/$GITHUB_USER/$REPO_NAME
+      '''
+    }]
   }
 }
