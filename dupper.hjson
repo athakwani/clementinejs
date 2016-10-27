@@ -287,19 +287,48 @@ EOM
       '''
         cd $REPO_ROOT
         
-        printf "Username for 'https://github.com': "
-        read GITHUB_USER
-        export GITHUB_USER
+        if [[ $(git config remote.origin.forked) == "" ]]; then
+            printf "New github repository name: "
+            read GITHUB_REPO
+            export GITHUB_REPO
 
-        printf "Password for 'https://$GITHUB_USER@github.com':"
-        read GITHUB_PASSWORD
-        export GITHUB_PASSWORD        
-        hub fork --no-remote
-        hub remote remove origin
-        hub remote add origin https://${GITHUB_USER}:${GITHUB_PASSWORD}@github.com/$GITHUB_USER/$REPO_NAME
-        hub push
-        hub remote remove origin
-        hub remote add origin https://github.com/$GITHUB_USER/$REPO_NAME
+            printf "Username for 'https://github.com': "
+            read GITHUB_USER
+            export GITHUB_USER
+
+            printf "Password for 'https://$GITHUB_USER@github.com':"
+            read -s GITHUB_PASSWORD
+            export  GITHUB_PASSWORD
+            printf "\n"
+
+            hub create -d "Seed commit" $GITHUB_REPO
+            hub remote set-url origin https://github.com/$GITHUB_USER/$GITHUB_REPO.git
+            echo "https://${GITHUB_USER}:${GITHUB_PASSWORD}@github.com/$GITHUB_USER/$GITHUB_REPO.git" > ~/.git-credentials
+            git config remote.origin.forked 1
+        fi
+        
+        hub push origin master
+      '''
+    }],
+    get-url: [{
+      server:
+      '''
+        _err_start() {
+            echo "Stack not configured. Start stack using below command"
+            echo "dupper exec -t $REPO_NAME start"
+        }
+        
+        ENVFILE=$REPO_ROOT/.env.local
+        if [[ -f $ENVFILE ]]; then
+            APP_URL=$(source $ENVFILE; echo $APP_URL)
+            if [[ $APP_URL != "" ]]; then
+                echo "$APP_URL"
+            else
+                _err_start          
+            fi
+        else
+            _err_start        
+        fi
       '''
     }]
   }
