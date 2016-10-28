@@ -26,9 +26,9 @@
         wget https://github.com/github/hub/releases/download/v2.3.0-pre8/hub-linux-amd64-2.3.0-pre8.tgz
         tar -xvzf hub-linux-amd64-2.3.0-pre8.tgz 
         cp ./hub-linux-amd64-2.3.0-pre8/bin/hub /usr/local/bin/
+        wget -O- https://toolbelt.heroku.com/install-ubuntu.sh | sh		
       '''
     },
-    {
       name: "nodejs-dependencies",
       cmd:
       '''
@@ -330,6 +330,156 @@ EOM
             _err_start        
         fi
       '''
+    }],
+    heroku-deploy: [{
+        server:
+        '''
+            cd $REPO_ROOT
+            ENVFILE=$REPO_ROOT/.env.heroku
+            
+            EMAIL=$(git config --global user.email)
+            if [[ -z $EMAIL ]]
+            then
+                printf "Enter Email for git commit: "
+                read EMAIL
+                [ -z $EMAIL ] && echo "Invalid email address" && exit 1
+                git config --global user.email $EMAIL
+            fi
+
+            NAME=$(git config --global user.name)
+            if [[ -z $NAME ]]
+            then
+                printf "Enter Name for git commit: "
+                read NAME
+                [ -z $EMAIL ] && echo "Invalid Name" && exit 1
+                git config --global user.name $NAME
+            fi
+
+            
+            [ -f $ENVFILE ] && APP_NAME=$(source $ENVFILE; echo $APP_NAME)
+            
+            if [[ -z $APP_NAME ]]
+            then
+                # Generate APP Name and APP URL from user.name
+                APP_NAME=$(echo $NAME | awk '{print $1;}')
+                APP_NAME="${APP_NAME,,}-${RANDOM}${RANDOM}"
+                echo "APP_NAME=$APP_NAME" > $ENVFILE
+            fi
+
+            APP_URL=$(source $ENVFILE; echo $APP_URL)
+            if [[ -z $APP_URL ]]
+            then
+                APP_URL=https://${APP_NAME}.herokuapp.com/
+                echo "APP_URL=$APP_URL" >> $ENVFILE
+            fi
+
+            REMOTE_APP_NAME=$(heroku domains  --app $APP_NAME --json 2>&1 | jq -r .[0].app.name 2>&1)
+            # Get config from user if .env file doesnt exists
+            if [[ $REMOTE_APP_NAME != $APP_NAME ]]
+            then
+                # Create Heroku app and add MONGODB URI addon
+                heroku create $APP_NAME
+                [ $? -ne 0 ] && exit 1
+            fi
+
+            MONGODB_URI=$(heroku config:get MONGODB_URI --app $APP_NAME)
+            if [[ -z $MONGODB_URI ]]
+            then
+                heroku addons:create mongolab --app $APP_NAME
+                [ $? -ne 0 ] && exit 1
+                MONGODB_URI=$(heroku config:get MONGODB_URI --app $APP_NAME)
+                echo "MONGO_URI=$MONGODB_URI" >> $ENVFILE
+            fi
+
+            GITHUB_KEY=$(source $ENVFILE; echo $GITHUB_KEY)
+            GITHUB_SECRET=$(source $ENVFILE; echo $GITHUB_SECRET)
+            
+            if [[ -x $GITHUB_KEY ]] || [[ -z $GITHUB_SECRET ]]
+            then
+                # Instruction to register OAUTH application on GITHUB
+                cat <<-EOM
+
+                Please visit https://github.com/settings/applications/new to create application with following information
+                Application Name - $APP_NAME
+                Homepage URL - $APP_URL
+                Authorization callback URL - ${APP_URL}auth/github/callback
+                and come back to fill below information
+                
+EOM
+            fi
+            
+            if [[ -z $GITHUB_KEY ]]
+            then
+                # Collect OAUTH parameters and write in .env file
+                printf "Enter Github App Client ID: "
+                read GITHUB_KEY
+                [ -z $GITHUB_KEY ] && echo "Invalid Client ID" && exit 1                
+                echo "GITHUB_KEY=$GITHUB_KEY" >> $ENVFILE
+            fi
+
+            if [[ -z $GITHUB_SECRET ]]
+            then
+                printf "Enter Github App Client Secret: "
+                read GITHUB_SECRET
+                [ -z $GITHUB_SECRET ] && echo "Invalid Client Secret" && exit 1                
+                echo "GITHUB_SECRET=$GITHUB_SECRET" >> $ENVFILE
+            fi
+
+            GITURL=$(git remote -v | grep heroku.*\(fetch\) | sed "s/heroku.*\(http.*\)(fetch)/\1/g")
+            HEROKU_GITURL=$(heroku apps:info $APP_NAME --json | jq -r .app.git_url)
+            [ $? -ne 0 ] && exit 1
+
+            if [[ $GITURL != $HEROKU_GITURL ]]
+            then
+                git remote rm heroku
+                git remote add heroku $HEROKU_GITURL
+            fi
+            
+            # Add .env file and commit changes  
+            cp $ENVFILE $REPO_ROOT/.env
+            git add -f .env
+            # Push app to heroku master            
+            git add -A
+            git commit -m "Heroku Deploy"
+            git push heroku master
+            URL=$(heroku domains --app $APP_NAME --json | jq .[0].hostname)
+            _export URL
+        '''
+      },{
+        client:
+        '''
+          # Open APP URL on Mac
+          os="$(uname -s)"
+          if [[ $os == "Darwin" ]]; then
+            [[ ${URL:-} != "" ]] && open https://$URL
+          else
+            echo "Heroku app deployed at https://$URL"
+          fi        
+        '''
+    }],    
+    heroku-delete: [{
+        server:
+        '''
+            cd $REPO_ROOT
+            ENVFILE=$REPO_ROOT/.env.heroku
+
+            [ -f $ENVFILE ] && APP_NAME=$(source $ENVFILE; echo $APP_NAME)
+            
+            if [[ -n $APP_NAME ]]
+            then
+                git remote remove heroku
+                heroku apps:destroy --app $APP_NAME --confirm $APP_NAME
+                # Instruction to register OAUTH application on GITHUB
+                cat <<-EOM
+                
+                Don't forget to delete OAUTH $APP_NAME Application from your Github account.
+                
+EOM
+                rm $ENVFILE
+            else 
+                echo "App not Found"
+            fi            
+        '''
     }]
   }
 }
