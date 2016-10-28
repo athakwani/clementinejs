@@ -29,6 +29,7 @@
         wget -O- https://toolbelt.heroku.com/install-ubuntu.sh | sh		
       '''
     },
+    {
       name: "nodejs-dependencies",
       cmd:
       '''
