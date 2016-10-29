@@ -256,7 +256,7 @@ EOM
           fi        
         '''
     }],
-    c9: [{
+    cloud9: [{
       server:
       '''
           # Start debugger in background detached from terminal
@@ -276,7 +276,7 @@ EOM
           fi        
       '''
     }],  
-    collab: [{
+    collaborate: [{
       server:
       '''
         openport  8000
