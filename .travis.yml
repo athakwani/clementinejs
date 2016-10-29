@@ -12,6 +12,7 @@ before_install:
 - openssl aes-256-cbc -K $encrypted_656906b61c9e_key -iv $encrypted_656906b61c9e_iv -in config.json.enc -out $HOME/.docker/config.json -d
 
 install:
+- docker login -e "${DOCKERHUB_EMAIL}" -u "${DOCKERHUB_USER}" -p "${DOCKERHUB_PASSWORD}"
 - dupper --debug dup -t --branch $TRAVIS_BRANCH --commit $TRAVIS_COMMIT --build https://github.com/$TRAVIS_REPO_SLUG
 
 script:
