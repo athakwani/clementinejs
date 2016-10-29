@@ -7,7 +7,8 @@ services:
 - docker
 
 before_install:
-- curl -sSL https://get.dupper.co | sudo sh
+- curl -sSLO https://get.dupper.co/release/$(uname -s)/x86_64/dupper-0.2.2.tgz
+- sudo tar -xvzf dupper-0.2.1.tgz -C /usr/local
 - mkdir -p $HOME/.docker
 
 install:
