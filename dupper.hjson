@@ -56,7 +56,7 @@
       server:
       '''
         cd $REPO_ROOT
-        ENVFILE=$REPO_ROOT/.env.local
+        ENVFILE=/tmp/.env.local
 
         [ -f $ENVFILE ] && APP_NAME=$(source $ENVFILE; echo $APP_NAME)
 
@@ -202,7 +202,7 @@ EOM
     delete: [{
       server:
       '''
-          ENVFILE=$REPO_ROOT/.env.local
+          ENVFILE=/tmp/.env.local
           [ -f $ENVFILE ] && PID=$(source $ENVFILE; echo $PID)
           [[ $PID != "" ]] && openport --kill $PID
 
@@ -212,7 +212,7 @@ EOM
 
           # Kill all group processes
           [ -n $pgid ] && pkill -1 -g $pgid
-          rm -f $REPO_ROOT/.env.local
+          rm -f /tmp/.env.local
           echo -e "Clementinejs stack config ..... [ DELETED ]"
       '''
     }],        
@@ -319,7 +319,7 @@ EOM
             echo "dupper exec -t $REPO_NAME start"
         }
         
-        ENVFILE=$REPO_ROOT/.env.local
+        ENVFILE=/tmp/.env.local
         if [[ -f $ENVFILE ]]; then
             APP_URL=$(source $ENVFILE; echo $APP_URL)
             if [[ $APP_URL != "" ]]; then
@@ -336,7 +336,7 @@ EOM
         server:
         '''
             cd $REPO_ROOT
-            ENVFILE=$REPO_ROOT/.env.heroku
+            ENVFILE=/tmp/.env.heroku
             
             EMAIL=$(git config --global user.email)
             if [[ -z $EMAIL ]]
@@ -352,7 +352,7 @@ EOM
             then
                 printf "Enter Name for git commit: "
                 read NAME
-                [ -z $EMAIL ] && echo "Invalid Name" && exit 1
+                [ -z $NAME ] && echo "Invalid Name" && exit 1
                 git config --global user.name $NAME
             fi
 
@@ -363,7 +363,7 @@ EOM
             then
                 # Generate APP Name and APP URL from user.name
                 APP_NAME=$(echo $NAME | awk '{print $1;}')
-                APP_NAME="${APP_NAME,,}-${RANDOM}${RANDOM}"
+                APP_NAME="${APP_NAME,,}-${RANDOM}"
                 echo "APP_NAME=$APP_NAME" > $ENVFILE
             fi
 
@@ -436,12 +436,12 @@ EOM
                 git remote add heroku $HEROKU_GITURL
             fi
             
+            git checkout -B master
             # Add .env file and commit changes  
             cp $ENVFILE $REPO_ROOT/.env
-            git add -f .env
             # Push app to heroku master            
             git add -A
-            git commit -m "Heroku Deploy"
+            git commit -m "Heroku Deploy"            
             git push heroku master
             URL=$(heroku domains --app $APP_NAME --json | jq .[0].hostname)
             _export URL
@@ -462,7 +462,7 @@ EOM
         server:
         '''
             cd $REPO_ROOT
-            ENVFILE=$REPO_ROOT/.env.heroku
+            ENVFILE=/tmp/.env.heroku
 
             [ -f $ENVFILE ] && APP_NAME=$(source $ENVFILE; echo $APP_NAME)
             
