@@ -331,7 +331,7 @@ EOM
         fi
       '''
     }],
-    heroku-deploy: [{
+    deploy: [{
         server:
         '''
             cd $REPO_ROOT
