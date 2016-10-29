@@ -15,9 +15,11 @@ install:
 - dupper --debug dup -t --branch $TRAVIS_BRANCH --commit $TRAVIS_COMMIT --build https://github.com/$TRAVIS_REPO_SLUG
 
 script:
-- docker tag clementinejs-fcc:$TRAVIS_COMMIT dupper/clementinejs-fcc:$TRAVIS_COMMIT
-- docker push dupper/clementinejs-fcc:$TRAVIS_COMMIT
+- export GITHUB_USER=$(basename $(dirname $TRAVIS_REPO_SLUG))
+- export GITHUB_REPO=$(basename $TRAVIS_REPO_SLUG)
+- docker tag ${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_COMMIT dupper/${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_COMMIT
+- docker push dupper/${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_COMMIT
 
 after_success:
-- docker tag clementinejs-fcc:$TRAVIS_COMMIT dupper/clementinejs-fcc:$TRAVIS_BRANCH
-- docker push dupper/clementinejs-fcc:$TRAVIS_BRANCH
+- docker tag ${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_COMMIT dupper/${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_BRANCH
+- docker push dupper/${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_BRANCH
