@@ -302,7 +302,7 @@ EOM
             export  GITHUB_PASSWORD
             printf "\n"
 
-            hub create -d "Seed commit" $GITHUB_REPO
+            hub create -d "A version of the Clementine.js boilerplate specifically for use with Free Code Camp curriculum. http://www.clementinejs.com" $GITHUB_REPO
             hub remote set-url origin https://github.com/$GITHUB_USER/$GITHUB_REPO.git
             echo "https://${GITHUB_USER}:${GITHUB_PASSWORD}@github.com/$GITHUB_USER/$GITHUB_REPO.git" > ~/.git-credentials
             git config remote.origin.forked 1
