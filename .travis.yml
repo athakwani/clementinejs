@@ -7,7 +7,7 @@ services:
 - docker
 
 before_install:
-- curl -sSLO https://get.dupper.co | sudo sh
+- curl -sSL https://get.dupper.co | sudo sh
 - mkdir -p $HOME/.docker
 
 install:
