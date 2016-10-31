@@ -307,7 +307,8 @@ EOM
             echo "https://${GITHUB_USER}:${GITHUB_PASSWORD}@github.com/$GITHUB_USER/$GITHUB_REPO.git" > ~/.git-credentials
             git config remote.origin.forked 1
         fi
-        
+        hub add -A
+        hub commit
         hub push origin master
       '''
     }],
