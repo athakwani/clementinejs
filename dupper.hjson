@@ -317,6 +317,7 @@ EOM
             git config remote.origin.forked 1
         fi
 
+        
         hub add -A
         hub commit
         hub push origin master
@@ -455,6 +456,7 @@ EOM
             git commit -m "Heroku Deploy"            
             git push heroku master
             URL=$(heroku domains --app $APP_NAME --json | jq .[0].hostname)
+            rm $REPO_ROOT/.env
             _export URL
         '''
       },{
