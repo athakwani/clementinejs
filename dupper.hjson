@@ -319,9 +319,9 @@ EOM
 
         [[ -f $REPO_ROOT/.env ]] && mv $REPO_ROOT/.env /tmp
         hub add -A
-        [[ -f /tmp/.env ]] && mv /tmp/.env $REPO_ROOT/
         hub commit
         hub push origin master
+        [[ -f /tmp/.env ]] && mv /tmp/.env $REPO_ROOT/
       '''
     }],
     get-url: [{
