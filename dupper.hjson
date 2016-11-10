@@ -318,8 +318,10 @@ EOM
         fi
 
         [[ -f $REPO_ROOT/.env ]] && mv $REPO_ROOT/.env /tmp
+        set +e
         hub add -A
         hub commit
+        set -e
         hub push origin master
         [[ -f /tmp/.env ]] && mv /tmp/.env $REPO_ROOT/
       '''
