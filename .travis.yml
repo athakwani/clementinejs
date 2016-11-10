@@ -1,0 +1,26 @@
+-os:		
+ -- linux		
+ -		
+ -sudo: required		
+ -		
+ -services:		
+ -- docker		
+ -		
+ -before_install:		
+ -- curl -sSLO https://get.dupper.co/release/$(uname -s)/x86_64/dupper-0.2.1.tgz		
+ -- sudo tar -xvzf dupper-0.2.1.tgz -C /usr/local		
+ -- mkdir -p $HOME/.docker		
+ -		
+ -install:		
+ -- docker login -e "${DOCKERHUB_EMAIL}" -u "${DOCKERHUB_USER}" -p "${DOCKERHUB_PASSWORD}"		
+ -- dupper --debug dup -t --branch $TRAVIS_BRANCH --commit $TRAVIS_COMMIT --build https://github.com/$TRAVIS_REPO_SLUG		
+ -		
+ -script:		
+ -- export GITHUB_USER=$(basename $(dirname $TRAVIS_REPO_SLUG))		
+ -- export GITHUB_REPO=$(basename $TRAVIS_REPO_SLUG)		
+ -- docker tag ${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_COMMIT dupper/${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_COMMIT		
+ -- docker push dupper/${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_COMMIT		
+ -		
+ -after_success:		
+ -- docker tag ${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_COMMIT dupper/${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_BRANCH		
+ -- docker push dupper/${GITHUB_USER}-${GITHUB_REPO}:$TRAVIS_BRANCH
