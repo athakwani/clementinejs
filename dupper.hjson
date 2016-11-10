@@ -286,6 +286,7 @@ EOM
     save: [{
       server:
       '''
+        set -e
         cd $REPO_ROOT
         
         if [[ $(git config remote.origin.forked) == "" ]]; then
@@ -301,6 +302,14 @@ EOM
             read -s GITHUB_PASSWORD
             export  GITHUB_PASSWORD
             printf "\n"
+            
+            user_json="$(curl -sSL -u $GITHUB_USER:$GITHUB_PASSWORD https://api.github.com/user | jq .)"
+            set +e
+            git config --global --unset-all user.email
+            git config --global --unset-all user.name
+            set -e
+            git config --global user.email "$(echo "$user_json" | jq -r .email)"
+            git config --global user.name "$(echo "$user_json" | jq -r .name)"
 
             hub create -d "Seed commit" $GITHUB_REPO
             hub remote set-url origin https://github.com/$GITHUB_USER/$GITHUB_REPO.git
@@ -308,6 +317,8 @@ EOM
             git config remote.origin.forked 1
         fi
         
+        hub add -A
+        hub commit
         hub push origin master
       '''
     }],
